@@ -1,0 +1,43 @@
+# systemd unit for a Linux server.  Install:
+#   sudo cp deploy/tiktok-guard.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now tiktok-guard      # logs: journalctl -u tiktok-guard -f   and  data/logs/bot.log
+# Edit User / WorkingDirectory / ExecStart to your install. The limits keep the bot from ever starving the server.
+[Unit]
+Description=TikTok comment guard (Telegram bot + monitor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tiktokguard
+WorkingDirectory=/opt/tiktok-guard
+EnvironmentFile=-/opt/tiktok-guard/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/tiktok-guard/venv/bin/python run.py serve
+Restart=on-failure
+RestartSec=20
+
+# --- keep the load on the server small -------------------------------------------------------------------
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=20
+# at most one full core: a scan that opens posts needs ~60-70 CPU-s, and a tighter cap stretches it past the
+# page-load waits the bot uses. CPUWeight/Nice already hand the CPU to everything else first.
+CPUQuota=100%
+# measured browser peak ~1.2 GB (private) + ~0.1 GB for Python; MemoryHigh sits above that so it never throttles a scan
+MemoryHigh=2000M
+MemoryMax=2600M
+TasksMax=400
+# a browser stuck after a crash must not survive the service: kill the whole control group on stop
+KillMode=control-group
+TimeoutStopSec=40
+
+# --- hardening ----------------------------------------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/tiktok-guard
+
+[Install]
+WantedBy=multi-user.target

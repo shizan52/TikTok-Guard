@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok Guard</title>
+<style>
+:root{
+  --bg:#f3f4fb; --surface:#fff; --surface2:#f8f9fe; --ink:#161a30; --mute:#6a7090; --line:#e5e8f3;
+  --brand:#6c5ce7; --brand2:#ff4d8d; --grad:linear-gradient(135deg,#6c5ce7 0%,#ff4d8d 100%);
+  --ok:#0f9d68; --okbg:#e3f6ee; --warn:#d97706; --warnbg:#fdf0dc; --bad:#e0383e; --badbg:#fde8e9; --info:#2563eb; --infobg:#e5eeff;
+  --shadow:0 1px 2px rgba(22,26,48,.05),0 10px 28px rgba(22,26,48,.07); --ring:0 0 0 3px rgba(108,92,231,.22);
+  --side:#12142b; --side2:#1b1e3f; --sideink:#c9cdee; --sidemute:#8087b8;
+}
+html[data-theme=dark]{
+  --bg:#0d0f1f; --surface:#171a30; --surface2:#1d2140; --ink:#eceffd; --mute:#9aa1c7; --line:#292e52;
+  --ok:#4cd6a0; --okbg:#10352a; --warn:#f3a64a; --warnbg:#3b2a10; --bad:#ff7a80; --badbg:#3d171a; --info:#7aa7ff; --infobg:#172a52;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.35); --side:#0a0b19; --side2:#14173a;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.5 Inter,"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--brand)}
+::selection{background:rgba(108,92,231,.25)}
+#app{display:grid;grid-template-columns:256px 1fr;height:100vh}
+/* ---- sidebar */
+aside{background:linear-gradient(180deg,var(--side),var(--side2));color:var(--sideink);display:flex;flex-direction:column;padding:20px 14px;gap:6px;overflow:auto}
+.logo{display:flex;align-items:center;gap:11px;padding:4px 10px 18px;color:#fff}
+.logo .mark{width:38px;height:38px;border-radius:12px;background:var(--grad);display:grid;place-items:center;box-shadow:0 6px 18px rgba(255,77,141,.35)}
+.logo b{font-size:16.5px;letter-spacing:.2px;display:block;line-height:1.1}.logo small{color:var(--sidemute);font-size:11.5px}
+nav{display:flex;flex-direction:column;gap:3px}
+nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;color:var(--sideink);text-decoration:none;font-weight:550;position:relative;transition:.15s}
+nav a:hover{background:rgba(255,255,255,.06)}
+nav a.on{background:rgba(255,255,255,.1);color:#fff}
+nav a.on::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:4px;border-radius:0 4px 4px 0;background:var(--grad)}
+nav a .badge{margin-left:auto;background:var(--brand2);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;font-weight:700}
+.side-foot{margin-top:auto;display:grid;gap:10px;padding:14px 8px 4px;border-top:1px solid rgba(255,255,255,.08)}
+.side-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.side-row small{color:var(--sidemute)}
+.activity-wrap{padding:0 8px;display:grid;gap:8px}
+.activity{display:grid;gap:3px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);font-size:12.5px;line-height:1.35}
+.activity .t{display:flex;gap:8px;align-items:center;font-weight:600}.activity small{color:var(--sidemute);word-break:break-word}
+.meter{height:6px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}.meter i{display:block;height:100%;background:var(--grad);border-radius:99px;transition:width .4s}
+/* ---- main */
+main{overflow:auto;position:relative}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:16px 32px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid transparent}
+.topbar h2{margin:0;font-size:21px;letter-spacing:-.2px}.topbar .sub{color:var(--mute);font-size:13.5px}
+.topbar .grow{flex:1}
+.icon-btn{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--mute)}
+.icon-btn:hover{color:var(--ink);border-color:var(--brand)}
+#results,#recent,#progress{scroll-margin-top:92px}
+#view{padding:6px 32px 56px;max-width:1120px;margin:0 auto;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+svg.ic{width:18px;height:18px;flex:none}
+/* ---- building blocks */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px 22px}
+.card h3{margin:0 0 4px;font-size:16px}.card .lead{color:var(--mute);margin:0 0 14px;font-size:13.5px}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g2{grid-template-columns:1fr}}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row.sp{justify-content:space-between}.grow{flex:1 1 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font-weight:600;transition:.15s;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:var(--grad);color:#fff;border:0;box-shadow:0 6px 16px rgba(108,92,231,.3)}
+.btn.primary:hover:not(:disabled){color:#fff;filter:brightness(1.06);transform:translateY(-1px)}
+.btn.soft{background:var(--surface2)}.btn.danger:hover:not(:disabled){border-color:var(--bad);color:var(--bad)}
+.btn.sm{padding:6px 12px;font-size:13px;border-radius:9px}.btn.ghost{border-color:transparent;background:transparent;color:var(--mute)}
+input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:10px 13px;border-radius:11px;border:1px solid var(--line);background:var(--surface2);outline:none;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:var(--ring);background:var(--surface)}
+textarea{resize:vertical;min-height:84px;line-height:1.5}
+select{width:auto;min-width:150px;padding-right:30px}
+label.field{display:grid;gap:6px;font-weight:600;font-size:13px}label.field small{font-weight:400;color:var(--mute)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;padding:2px 10px;border-radius:99px;background:var(--surface2);color:var(--mute);border:1px solid var(--line)}
+.chip.ok{background:var(--okbg);color:var(--ok);border-color:transparent}.chip.warn{background:var(--warnbg);color:var(--warn);border-color:transparent}
+.chip.bad{background:var(--badbg);color:var(--bad);border-color:transparent}.chip.info{background:var(--infobg);color:var(--info);border-color:transparent}
+.muted{color:var(--mute)}.small{font-size:13px}.mt{margin-top:14px}.mt2{margin-top:22px}
+.switch{position:relative;display:inline-block;width:46px;height:26px;flex:none}.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:.2s;cursor:pointer}
+.switch span::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;left:3px;top:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked+span{background:var(--ok)}.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{box-shadow:var(--ring)}
+.spin{width:16px;height:16px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--brand);animation:spin .8s linear infinite;display:inline-block;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:12px;background:var(--infobg);color:var(--info);font-size:13.5px}
+.banner.warn{background:var(--warnbg);color:var(--warn)}.banner.bad{background:var(--badbg);color:var(--bad)}.banner.ok{background:var(--okbg);color:var(--ok)}
+.empty{text-align:center;padding:38px 20px;color:var(--mute)}.empty .big{font-size:34px;margin-bottom:6px}.empty b{color:var(--ink);display:block;font-size:16px;margin-bottom:3px}
+.skel{border-radius:12px;background:linear-gradient(90deg,var(--surface2) 25%,var(--line) 50%,var(--surface2) 75%);background-size:200% 100%;animation:sk 1.2s infinite;height:84px}
+@keyframes sk{to{background-position:-200% 0}}
+/* ---- home */
+.hero{border-radius:22px;padding:34px 34px 26px;color:#fff;background:var(--grad);position:relative;overflow:hidden;box-shadow:0 18px 40px rgba(108,92,231,.28)}
+.hero::after{content:"";position:absolute;right:-70px;top:-70px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.12)}
+.hero h1{margin:0 0 6px;font-size:27px;letter-spacing:-.4px;position:relative}.hero p{margin:0 0 20px;opacity:.92;position:relative;max-width:620px}
+.urlbox{display:flex;gap:8px;background:#fff;border-radius:15px;padding:7px;box-shadow:0 8px 24px rgba(0,0,0,.18);position:relative;align-items:center}
+.urlbox .ic{color:#8a90b3;margin-left:10px}.urlbox input{border:0;background:transparent;box-shadow:none;padding:11px 6px;color:#161a30;font-size:15px}
+.urlbox input::placeholder{color:#9aa0c0}.urlbox input:focus{box-shadow:none;background:transparent}
+.urlbox .btn.paste{background:#f1f2fb;color:#4a4f73;border:0}
+.hero-opts{display:flex;gap:12px;align-items:center;margin-top:14px;font-size:13.5px;position:relative;flex-wrap:wrap}
+.hero-opts select{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff}.hero-opts select option{color:#161a30}
+.hero .err{margin-top:10px;background:rgba(0,0,0,.22);padding:9px 13px;border-radius:11px;position:relative}
+.stat{display:grid;gap:8px}.stat .k{color:var(--mute);font-size:12.5px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:7px}
+.stat .v{font-size:25px;font-weight:750;letter-spacing:-.5px}.stat .meter{background:var(--line)}.stat .meter i{background:var(--grad)}
+.stat .hint{font-size:12.5px;color:var(--mute)}
+.progress-card .steps{display:flex;gap:6px;margin:12px 0 4px}
+.step{flex:1;padding:7px 10px;border-radius:10px;background:var(--surface2);font-size:12.5px;font-weight:650;color:var(--mute);display:flex;align-items:center;gap:7px}
+.step.on{background:var(--infobg);color:var(--info)}.step.done{background:var(--okbg);color:var(--ok)}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--grad);border-radius:99px;transition:width .35s}
+.post-head{display:flex;gap:14px;align-items:flex-start}.post-ico{width:46px;height:46px;border-radius:13px;background:var(--grad);display:grid;place-items:center;color:#fff;flex:none}
+.post-head h3{margin:0 0 2px;font-size:15.5px}.post-head .desc{color:var(--mute);font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tabs{display:flex;gap:6px;margin:18px 0 12px;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-weight:650;font-size:13.5px;color:var(--mute)}
+.tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}.tab .n{opacity:.7;margin-left:5px;font-weight:600}
+.cc{border:1px solid var(--line);border-radius:15px;background:var(--surface);padding:15px 17px;display:grid;gap:10px;transition:.15s}
+.cc:hover{border-color:color-mix(in srgb,var(--brand) 40%,var(--line))}
+.cc-top{display:flex;gap:11px;align-items:center}.avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:750;flex:none;text-transform:uppercase}
+.cc-top .who{font-weight:700}.cc-top .meta{color:var(--mute);font-size:12.5px;display:flex;gap:10px;align-items:center}
+.cc-text{font-size:15px;white-space:pre-wrap;word-break:break-word}
+.why{color:var(--mute);font-size:13px;font-style:italic}
+.cc-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.composer{border-top:1px dashed var(--line);padding-top:12px;display:grid;gap:10px}
+.counter{font-size:12px;color:var(--mute);text-align:right}.counter.over{color:var(--warn);font-weight:650}
+.status-line{display:flex;gap:9px;align-items:flex-start;font-size:13.5px}
+.proof{display:flex;gap:12px;align-items:center;margin-top:6px}
+.proof img{width:150px;max-height:110px;object-fit:cover;object-position:top;border-radius:11px;border:1px solid var(--line);cursor:zoom-in;transition:.15s}
+.proof img:hover{transform:scale(1.03);border-color:var(--brand)}
+.list-row{display:grid;gap:8px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface)}
+.quote{border-left:3px solid var(--line);padding-left:11px;color:var(--mute);white-space:pre-wrap}
+.acct{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:15px;padding:15px 17px;background:var(--surface)}
+.acct .avatar{width:44px;height:44px;font-size:17px}.acct .name{font-weight:700}.acct .grow{min-width:0}
+.flow{border:1.5px solid var(--brand);border-radius:16px;padding:16px 18px;background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
+.flow.done{border-color:var(--ok)}.flow.failed{border-color:var(--bad)}
+.modal{position:fixed;inset:0;background:rgba(8,9,20,.78);display:grid;place-items:center;z-index:50;padding:30px;animation:fade .15s}
+.modal .box{background:var(--surface);border-radius:18px;padding:18px;max-width:min(92vw,1000px);max-height:92vh;overflow:auto;box-shadow:var(--shadow)}
+.modal img{max-width:100%;max-height:78vh;display:block;border-radius:10px}
+.kbd{font:12px ui-monospace,Consolas,monospace;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+table.map{width:100%;border-collapse:collapse;font-size:13.5px}table.map td,table.map th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.map th{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+@media(max-width:900px){#app{grid-template-columns:72px 1fr}.activity small,.activity .t span{display:none}.logo div,nav a span.t,.side-foot .side-row small,.side-foot .lbl{display:none}nav a{justify-content:center;padding:12px}nav a .badge{position:absolute;top:2px;right:6px;margin:0}
+ .topbar,#view{padding-left:18px;padding-right:18px}.hero{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="logo"><div class="mark" id="logo-mark"></div><div><b>TikTok Guard</b><small>Comment desk</small></div></div>
+    <nav id="nav"></nav>
+    <div class="activity-wrap" id="side-activity" aria-live="polite"></div>
+    <div class="side-foot" id="side-foot"></div>
+  </aside>
+  <main>
+    <div class="topbar"><div><h2 id="page-title"></h2><div class="sub" id="page-sub"></div></div><div class="grow"></div><button class="icon-btn" id="theme" title="Light / dark"></button></div>
+    <div id="view"></div>
+  </main>
+</div>
+<script>
+"use strict";
+/* ================================================================ helpers */
+const $ = (sel, el = document) => el.querySelector(sel);
+const ICONS = {
+  home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  replies:'<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  ai:'<path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/>',
+  sliders:'<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  search:'<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  paste:'<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>', x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  refresh:'<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+  moon:'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun:'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+  image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+  down:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  up:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  broom:'<path d="M19 3l-6 6"/><path d="M14.5 8.5l-9 9a2.1 2.1 0 0 0 3 3l9-9"/><path d="M4 21l3-3"/>',
+};
+function icon(name, size) {
+  const svg = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>', 'image/svg+xml').documentElement;
+  const el = document.importNode(svg, true); if (size) { el.style.width = el.style.height = size + 'px'; } return el;
+}
+function h(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k === 'value') n.value = v; else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = !!v;
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  (function add(list) { for (const kid of list) { if (Array.isArray(kid)) add(kid); else if (kid !== null && kid !== undefined && kid !== false) n.append(kid.nodeType ? kid : document.createTextNode(String(kid))); } })(kids);
+  return n;
+}
+const chip = (text, tone, ic) => h('span', { class: 'chip ' + (tone || '') }, ic ? icon(ic, 13) : null, text);
+const spinner = () => h('span', { class: 'spin', role: 'status' });
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
+function ago(ts) {
+  if (!ts) return ''; const t = typeof ts === 'number' ? ts * 1000 : Date.parse(ts); if (!t) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min ago'; if (s < 172800) return Math.round(s / 3600) + ' h ago';
+  if (s < 86400 * 45) return Math.round(s / 86400) + ' d ago'; return new Date(t).toLocaleDateString();
+}
+const num = n => (n >= 1000000 ? (n / 1e6).toFixed(1) + 'M' : n >= 10000 ? Math.round(n / 1000) + 'K' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n || 0));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ================================================================ state + api */
+const S = { token: '', theme: 'light', route: 'home', dash: null, accounts: [], accountsRaw: null, job: null, result: null,
+            filter: 'negative', timers: new Set(), homeUrl: '', readAccount: '', activity: null };
+try { const m = location.hash.match(/token=([^&]+)/); S.token = m ? decodeURIComponent(m[1]) : (sessionStorage.getItem('tg_token') || '');
+      if (S.token) sessionStorage.setItem('tg_token', S.token); } catch (e) {}
+
+async function api(method, path, body) {
+  let res;
+  try { res = await fetch(path, { method, headers: { 'Authorization': 'Bearer ' + S.token, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
+  catch (e) { const err = new Error('The app is not answering. Is it still running?'); err.code = 'offline'; throw err; }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error((data.error && data.error.message) || res.statusText); e.code = data.error && data.error.code; e.status = res.status; e.data = data.error || {}; throw e; }
+  return data;
+}
+const shot = file => '/api/screenshots/' + encodeURIComponent(file) + '?token=' + encodeURIComponent(S.token);
+const later = (fn, ms) => { const t = setTimeout(() => { S.timers.delete(t); fn(); }, ms); S.timers.add(t); return t; };
+function stopTimers() { S.timers.forEach(clearTimeout); S.timers.clear(); }
+
+/* ================================================================ what is happening right now (every page) */
+let activityTimer = null;
+async function pollActivity() {
+  clearTimeout(activityTimer);
+  let a; try { a = await api('GET', '/api/activity'); } catch (e) { return; }
+  S.activity = a; renderActivity();
+  if (a.busy) activityTimer = setTimeout(pollActivity, 2000);          /* polls only while something is in flight */
+}
+function renderActivity() {
+  const box = $('#side-activity'); if (!box) return; clear(box); const a = S.activity; if (!a || !a.busy) return;
+  (a.sending || []).forEach(x => box.append(h('div', { class: 'activity', 'data-role': 'activity-sending' },
+    h('div', { class: 't' }, spinner(), h('span', {}, 'Sending a reply' + (x.username ? ' to @' + x.username : ''))), h('small', {}, x.text + ' (' + x.seconds + ' s)'))));
+  (a.checking || []).forEach(x => box.append(h('div', { class: 'activity', 'data-role': 'activity-checking' },
+    h('div', { class: 't' }, spinner(), h('span', {}, 'Checking a reply on TikTok')), h('small', {}, x.text + ' (' + x.seconds + ' s)'))));
+  if (a.reading) box.append(h('div', { class: 'activity', 'data-role': 'activity-reading' },
+    h('div', { class: 't' }, spinner(), h('span', {}, 'Reading a post')), h('small', {}, a.reading.message + ' (' + a.reading.seconds + ' s)')));
+}
+/* no 'leave this page?' prompt: closing the window while a reply is being sent is handled by the app itself (it finishes the send first) */
+
+/* ================================================================ shell: nav, sidebar, theme */
+const PAGES = [
+  { id: 'home', label: 'Home', icon: 'home', sub: 'Paste a post link, find the negative comments, answer them.' },
+  { id: 'replies', label: 'Replies', icon: 'replies', sub: 'Everything you drafted, sent or that needs another try.' },
+  { id: 'accounts', label: 'Accounts', icon: 'users', sub: 'The TikTok accounts the app reads and replies with.' },
+  { id: 'ai', label: 'AI & Brand', icon: 'ai', sub: 'How the AI writes, and what it knows about your company.' },
+  { id: 'controls', label: 'Controls', icon: 'sliders', sub: 'Posting, limits and the AI connection.' },
+  { id: 'help', label: 'Help', icon: 'help', sub: 'How it works, and what replaced the Telegram commands.' },
+];
+function setTheme(t) { S.theme = t; document.documentElement.setAttribute('data-theme', t); try { localStorage.setItem('tg_theme', t); } catch (e) {}
+  const b = $('#theme'); clear(b).append(icon(t === 'dark' ? 'sun' : 'moon')); }
+function initTheme() { let t = ''; try { t = localStorage.getItem('tg_theme') || ''; } catch (e) {}
+  if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; setTheme(t);
+  $('#theme').onclick = () => setTheme(S.theme === 'dark' ? 'light' : 'dark'); clear($('#logo-mark')).append(icon('shield', 22)); }
+function renderNav() {
+  const nav = clear($('#nav'));
+  PAGES.forEach(p => nav.append(h('a', { href: '#/' + p.id, class: S.route === p.id ? 'on' : '', 'data-nav': p.id, title: p.label }, icon(p.icon), h('span', { class: 't' }, p.label),
+    p.id === 'replies' && S.dash && S.dash.waiting ? h('span', { class: 'badge' }, S.dash.waiting) : null,
+    p.id === 'accounts' && S.dash && S.dash.accounts.need_login ? h('span', { class: 'badge', title: 'Needs login' }, '!') : null)));
+}
+function renderSide() {
+  const f = clear($('#side-foot')); const d = S.dash; if (!d) return;
+  const used = d.ai.daily_requests ? Math.min(100, Math.round(100 * d.ai.used / d.ai.daily_requests)) : 100;
+  f.append(
+    h('div', { class: 'side-row' }, h('span', { class: 'lbl' }, 'Posting ', h('b', { id: 'side-post-state' }, d.posting_enabled ? 'ON' : 'OFF')),
+      switchEl(d.posting_enabled, v => setPosting(v), 'side-posting')),
+    h('div', {}, h('div', { class: 'side-row' }, h('span', { class: 'lbl' }, 'AI today'), h('small', {}, d.ai.used + ' / ' + d.ai.daily_requests)), h('div', { class: 'meter', style: 'margin-top:6px' }, h('i', { style: 'width:' + used + '%' }))));
+}
+function switchEl(checked, onChange, id) {
+  const input = h('input', { type: 'checkbox', checked, id: id || null, onchange: e => onChange(e.target.checked) });
+  return h('label', { class: 'switch' }, input, h('span'));
+}
+async function setPosting(on) {
+  try { await api('PUT', '/api/settings', { posting_enabled: on }); await loadDash(); } catch (e) { await loadDash(); showError(e.message); }
+}
+async function loadDash() { try { S.dash = await api('GET', '/api/dashboard'); } catch (e) { if (e.code === 'unauthorized') return askToken(); throw e; } renderNav(); renderSide(); if (S.route === 'home') renderStats(); return S.dash; }
+function showError(msg) { const box = $('#view'); const old = $('.fatal', box); if (old) old.remove(); box.prepend(h('div', { class: 'banner bad fatal', style: 'margin-bottom:14px' }, icon('alert'), h('div', {}, msg))); }
+function askToken() { const v = $('#view'); clear(v).append(h('div', { class: 'card', style: 'max-width:520px;margin:60px auto' }, h('h3', {}, 'Enter the access token'), h('p', { class: 'lead' }, 'Open the app with python app.py - it fills this in by itself. Or paste the token printed by: python run.py api-token'),
+  h('input', { type: 'text', id: 'tok', placeholder: 'token' }), h('div', { class: 'row mt' }, h('button', { class: 'btn primary', onclick: () => { S.token = $('#tok').value.trim(); try { sessionStorage.setItem('tg_token', S.token); } catch (e) {} boot(); } }, 'Connect')))); }
+
+/* ================================================================ router */
+const routes = {};
+function route() {
+  const id = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'home'; S.route = routes[id] ? id : 'home';
+  stopTimers(); const page = PAGES.find(p => p.id === S.route);
+  $('#page-title').textContent = page.label; $('#page-sub').textContent = page.sub; renderNav(); $('main').scrollTop = 0;
+  const view = clear($('#view')); view.style.animation = 'none'; void view.offsetWidth; view.style.animation = '';
+  Promise.resolve(routes[S.route](view)).catch(e => { if (e.code !== 'unauthorized') showError(e.message); });
+}
+window.addEventListener('hashchange', route);
+function openModal(content) {
+  const m = h('div', { class: 'modal', onclick: e => { if (e.target === m) close(); } }, h('div', { class: 'box' }, content));
+  const close = () => { m.remove(); document.removeEventListener('keydown', esc); }; const esc = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', esc); document.body.append(m); return close;
+}
+function confirmBox(title, text, okLabel, onOk) {
+  const close = openModal(h('div', { style: 'max-width:420px' }, h('h3', { style: 'margin:0 0 6px' }, title), h('p', { class: 'muted' }, text),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'btn', onclick: () => close() }, 'Cancel'), h('button', { class: 'btn primary', onclick: () => { close(); onOk(); } }, okLabel))));
+}
+function proofModal(file) { openModal(h('div', {}, h('div', { class: 'row sp', style: 'margin-bottom:10px' }, h('b', {}, 'Proof - taken right after sending'), h('span', { class: 'muted small' }, 'Press Esc to close')), h('img', { src: shot(file), alt: 'Screenshot of the sent reply' }))); }
+
+/* ================================================================ accounts helpers */
+async function loadAccounts() { const d = await api('GET', '/api/accounts'); S.accountsRaw = d; S.accounts = d.accounts; return d; }
+function usableAccounts() { return S.accounts.filter(a => a.enabled); }
+function acctName(a) { return a.username ? '@' + a.username : a.label || a.name; }
+function accountSelect(value, id) {
+  const sel = h('select', { id: id || null, 'data-role': 'account' }, h('option', { value: '' }, 'Auto - first account that works'),
+    usableAccounts().map(a => h('option', { value: a.name, selected: a.name === value }, acctName(a) + (a.session === 'expired' ? '  (needs login)' : a.resting_seconds ? '  (resting - TikTok just refused it)' : a.is_master ? '  (page account)' : ''))));
+  return sel;
+}
+const sessionChip = a => a.session === 'ok' ? chip('Logged in', 'ok', 'check') : a.session === 'expired' ? chip('Needs login', 'bad', 'alert') : chip('Not checked', '', null);
+
+/* ================================================================ the reply composer (used on Home and Replies) */
+function watchCard(id, onUpdate) {
+  let stopped = false; const started = Date.now();
+  (async function loop() {
+    while (!stopped && Date.now() - started < 25 * 60 * 1000) {
+      await sleep(1400); if (stopped) return;
+      try { const v = await api('GET', '/api/approvals/' + id); onUpdate(v); if (v.status !== 'posting') return; } catch (e) { if (e.code === 'offline') { onUpdate(null, e); return; } }
+    }
+    if (!stopped) onUpdate(null, new Error('This is taking unusually long. Open the Replies page to see where it stands.'));
+  })();
+  return () => { stopped = true; };
+}
+async function checkOnTikTok(id, onUpdate) {
+  /* asks the app to look at the post again and follows the card until the check is over; onUpdate(card) after every look */
+  let card = await api('POST', '/api/approvals/' + id + '/verify'); onUpdate(card); pollActivity();
+  const started = Date.now();
+  while (card.checking && Date.now() - started < 10 * 60 * 1000) {
+    await sleep(1500);
+    try { card = await api('GET', '/api/approvals/' + id); onUpdate(card); } catch (e) { if (e.code === 'offline') throw e; }
+  }
+  return card;
+}
+function Composer(opts) {
+  /* opts: {getCard(): approval|null, createCard(account): Promise<approval>, needsBrief, onCard(card), placeholder, sendLabel, initialAccount} */
+  let card = opts.getCard ? opts.getCard() : null; let stopWatch = null; let busy = false;
+  const ta = h('textarea', { placeholder: opts.placeholder || 'Write your reply here, or let the AI write it...', 'data-role': 'text', oninput: count });
+  const counter = h('div', { class: 'counter' }); const status = h('div', { class: 'status-line', 'aria-live': 'polite' });
+  const acc = accountSelect((card && card.account) || opts.initialAccount || '', null);
+  const brief = h('input', { type: 'text', 'data-role': 'brief', placeholder: 'In a few words, what should it say? e.g. thank them and invite them to the store', style: 'display:none' });
+  const aiBtn = h('button', { class: 'btn soft', 'data-act': 'ai', onclick: aiWrite }, icon('ai'), 'Write with AI');
+  const sendBtn = h('button', { class: 'btn primary', 'data-act': 'send', onclick: send }, icon('send'), opts.sendLabel || 'Send reply');
+  const proofBox = h('div'); const root = h('div', { class: 'composer', 'data-role': 'composer' },
+    opts.needsBrief ? brief : null, ta, h('div', { class: 'row sp' }, h('div', { class: 'row' }, aiBtn, h('span', { class: 'muted small' }, 'Reply as'), acc), h('div', { class: 'row' }, counter, sendBtn)), status, proofBox);
+  if (card && card.reply) ta.value = card.reply; count(); showCard(card);
+  function count() { const n = ta.value.trim().length; counter.textContent = n + ' / 150'; counter.className = 'counter' + (n > 150 ? ' over' : ''); counter.title = n > 150 ? 'TikTok allows 150 characters - it will be shortened to fit' : ''; }
+  function say(kind, ...kids) { clear(status); if (kids.length) status.append(...kids); status.className = 'status-line ' + (kind || ''); }
+  function setBusy(b) { busy = b; [aiBtn, sendBtn, acc, ta].forEach(e => { e.disabled = b; }); }
+  async function ensure() { if (!card) { card = await opts.createCard(acc.value || null); } return card; }
+  async function aiWrite() {
+    if (busy) return;
+    if (opts.needsBrief) { brief.style.display = ''; if (!brief.value.trim()) { brief.focus(); say('', icon('ai', 15), h('span', { class: 'muted' }, 'Tell the AI what the comment should say, then press the button again.')); return; } }
+    setBusy(true); say('', spinner(), h('span', {}, 'The AI is writing...'));
+    try { await ensure(); card = await api('POST', '/api/approvals/' + card.id + '/regenerate', opts.needsBrief ? { brief: brief.value } : {}); ta.value = card.reply || ''; count(); say(''); if (opts.onCard) opts.onCard(card); }
+    catch (e) { say('bad', icon('alert', 15), h('span', {}, e.message)); } finally { setBusy(false); }
+  }
+  async function send() {
+    if (busy) return; const text = ta.value.trim();
+    if (!text) { say('bad', icon('alert', 15), h('span', {}, 'Write a reply first - or press "Write with AI".')); ta.focus(); return; }
+    setBusy(true); say('', spinner(), h('span', {}, 'Preparing...'));
+    try {
+      await ensure();
+      if (text !== (card.reply || '')) card = await api('POST', '/api/approvals/' + card.id + '/reply', { text });
+      if ((acc.value || null) !== (card.account || null)) card = await api('POST', '/api/approvals/' + card.id + '/account', { account: acc.value || null });
+      card = await api('POST', '/api/approvals/' + card.id + '/post'); if (opts.onCard) opts.onCard(card); showCard(card); pollActivity();
+    } catch (e) { say('bad', icon('alert', 15), h('span', {}, e.message)); setBusy(false); }
+  }
+  function setSendLabel(text) { clear(sendBtn).append(icon('send'), text); }
+  function verifyButton(c) {
+    if (!c.can_check) return null;
+    return h('button', { class: 'btn sm', 'data-act': 'verify', type: 'button', onclick: async e => { e.target.closest('button').disabled = true;
+      try { card = await checkOnTikTok(c.id, v => { card = v; showCard(v); if (opts.onCard) opts.onCard(v); }); showCard(card); if (opts.onCard) opts.onCard(card); } catch (er) { say('bad', icon('alert', 15), h('span', {}, er.message)); } } }, icon('search', 14), 'Check on TikTok');
+  }
+  function showCard(c) {
+    clear(proofBox); if (stopWatch) { stopWatch(); stopWatch = null; } if (!c) return;
+    setSendLabel(c.interrupted ? 'Send again anyway' : (opts.sendLabel || 'Send reply'));
+    if (c.status === 'posting') { setBusy(true); pollActivity();
+      const p = c.progress; say('', spinner(), h('span', { 'data-role': 'send-progress' }, 'Sending' + (c.account_label ? ' from ' + c.account_label : '') + ': ' + (p ? p.text + ' (' + p.seconds + ' s)' : 'starting...'),
+        h('br'), h('span', { class: 'muted small' }, p && p.seconds > 90 ? 'TikTok is slow right now - it is still working. You can leave this page; the sidebar and the Replies page keep showing it.' : 'Usually about a minute. You can leave this page - the sidebar keeps showing it.')));
+      stopWatch = watchCard(c.id, (v, err) => { if (err) { say('bad', icon('alert', 15), h('span', {}, err.message)); setBusy(false); return; } card = v; showCard(v); if (opts.onCard) opts.onCard(v); }); }
+    else if (c.status === 'posted') { setBusy(false); sendBtn.disabled = true; ta.disabled = true; aiBtn.disabled = true; acc.disabled = true;
+      say('ok', icon('check', 16), h('span', {}, h('b', {}, 'Sent'), ' from @' + (c.posted_by ? (S.accounts.find(a => a.name === c.posted_by) || {}).username || c.posted_by : '?') + (c.posted_at ? ' - ' + ago(c.posted_at) : '')
+        + (c.visibility === 'limited' ? '. TikTok shows this reply only to the account that wrote it.' : '.')));
+      if (c.proof_file) proofBox.append(h('div', { class: 'proof' }, h('img', { src: shot(c.proof_file), alt: 'proof', onclick: () => proofModal(c.proof_file) }), h('div', { class: 'small muted' }, h('b', { style: 'color:var(--ink)' }, 'Proof'), h('br'), 'Screenshot taken right after sending. Click to enlarge.'))); }
+    else if (c.status === 'approved') { setBusy(false); say('warn', icon('alert', 15), h('span', {}, 'Saved, but not sent: posting is switched OFF. ', h('a', { href: '#', id: 'turn-on-posting', onclick: async e => { e.preventDefault(); await setPosting(true); say('ok', icon('check', 15), h('span', {}, 'Posting is ON. Press "' + (opts.sendLabel || 'Send reply') + '" to send it.')); } }, 'Turn it on'))); }
+    else if (c.status === 'post_failed' && c.checking) { setBusy(true); say('', spinner(), h('span', { 'data-role': 'checking' }, 'Checking on TikTok...')); }
+    else if (c.status === 'post_failed' && (c.interrupted || c.checked)) { setBusy(false);
+      const tone = c.checked === 'absent' ? 'ok' : 'warn'; const lead = c.interrupted ? 'Not sure this was sent. ' : c.checked === 'absent' ? 'Not sent. ' : 'Maybe sent. ';
+      say(tone, icon(tone === 'ok' ? 'check' : 'alert', 15), h('span', { 'data-role': c.interrupted ? 'interrupted' : 'check-result' }, h('b', {}, lead), c.error, ' ',
+        c.target && c.target.video_url ? h('a', { href: c.target.video_url, target: '_blank', rel: 'noopener' }, 'Open the post on TikTok') : null, ' ', verifyButton(c))); }
+    else if (c.status === 'post_failed') { setBusy(false); say('bad', icon('alert', 15), h('span', {}, h('b', {}, 'Could not send. '), c.error || 'Try again.', ' ', verifyButton(c)));
+      if (c.check && c.check.outcome === 'error') status.append(h('div', { class: 'small', 'data-role': 'check-result', style: 'margin-top:4px' }, c.check.message)); }
+    else if (c.status === 'rejected') { setBusy(true); say('', h('span', { class: 'muted' }, 'Discarded.')); }
+    else { setBusy(false); }
+  }
+  root.refresh = showCard; root.setCard = c => { card = c; if (c && c.reply) { ta.value = c.reply; count(); } showCard(c); };
+  return root;
+}
+
+/* ================================================================ HOME */
+function renderStats() {
+  const box = $('#stats'); if (!box || !S.dash) return; const d = S.dash; clear(box);
+  const used = d.ai.daily_requests ? Math.min(100, Math.round(100 * d.ai.used / d.ai.daily_requests)) : 100;
+  box.append(
+    h('div', { class: 'card stat' }, h('div', { class: 'k' }, icon('send', 15), 'Posting'), h('div', { class: 'row sp' }, h('div', { class: 'v', style: 'color:' + (d.posting_enabled ? 'var(--ok)' : 'var(--warn)') }, d.posting_enabled ? 'ON' : 'OFF'), switchEl(d.posting_enabled, v => setPosting(v), 'home-posting')),
+      h('div', { class: 'hint' }, d.posting_enabled ? 'Replies you send go out to TikTok.' : 'Replies are saved but not sent.')),
+    h('div', { class: 'card stat' }, h('div', { class: 'k' }, icon('ai', 15), 'AI today'), h('div', { class: 'v' }, d.ai.used, h('span', { class: 'muted', style: 'font-size:15px;font-weight:600' }, ' / ' + d.ai.daily_requests)),
+      h('div', { class: 'meter' }, h('i', { style: 'width:' + used + '%' })), h('div', { class: 'hint' }, d.ai.exhausted ? 'Used up for today' : d.ai.remaining + ' requests left')),
+    h('div', { class: 'card stat' }, h('div', { class: 'k' }, icon('users', 15), 'Accounts'), h('div', { class: 'v' }, d.accounts.ready, h('span', { class: 'muted', style: 'font-size:15px;font-weight:600' }, ' / ' + d.accounts.usable + ' ready')),
+      h('div', { class: 'hint' }, d.accounts.need_login ? h('a', { href: '#/accounts', style: 'color:var(--bad)' }, d.accounts.need_login + ' need to log in again') : d.accounts.usable ? (d.accounts.unchecked ? d.accounts.unchecked + ' not checked yet' : 'All logged in') : h('a', { href: '#/accounts' }, 'Add your first account'))),
+    h('div', { class: 'card stat' }, h('div', { class: 'k' }, icon('replies', 15), 'Replies today'), h('div', { class: 'v' }, d.replies.today, h('span', { class: 'muted', style: 'font-size:15px;font-weight:600' }, d.replies.daily_limit ? ' / ' + d.replies.daily_limit : '')),
+      h('div', { class: 'hint' }, d.replies.daily_limit ? 'Daily limit protects your accounts' : 'No daily limit set')));
+}
+routes.home = async function (view) {
+  const form = h('form', { id: 'url-form', class: 'urlbox', onsubmit: e => { e.preventDefault(); analyze(); } },
+    icon('link', 20), h('input', { type: 'text', id: 'url-input', placeholder: 'Paste a TikTok post link  (tiktok.com/@name/video/...  or  vm.tiktok.com/...)', autocomplete: 'off', spellcheck: 'false', value: S.homeUrl }),
+    h('button', { type: 'button', class: 'btn paste', id: 'paste-btn', onclick: pasteUrl }, icon('paste', 16), 'Paste'),
+    h('button', { type: 'submit', class: 'btn primary', id: 'analyze-btn' }, icon('search', 16), 'Find negative comments'));
+  const readSel = h('select', { id: 'read-account' }, h('option', { value: '' }, 'Auto - first account that works'));
+  const hero = h('section', { class: 'hero' }, h('h1', {}, 'Find and answer the negative comments on any post'),
+    h('p', {}, 'Paste the link of a TikTok post. We read its comments, show you the negative ones, and help you reply - from the account you choose.'),
+    form, h('div', { class: 'hero-opts' }, h('span', {}, 'Read the comments with'), readSel), h('div', { id: 'url-error' }));
+  view.append(hero, h('section', { id: 'health', class: 'mt' }), h('section', { id: 'stats', class: 'grid g4 mt' }, [0, 1, 2, 3].map(() => h('div', { class: 'card skel' }))),
+    h('section', { id: 'progress', class: 'mt' }), h('section', { id: 'results', class: 'mt' }), h('section', { id: 'recent', class: 'mt2' }));
+  $('#url-input').focus();
+  const [, acc] = await Promise.all([loadDash(), loadAccounts()]);
+  usableAccounts().forEach(a => readSel.append(h('option', { value: a.name, selected: a.name === S.readAccount }, acctName(a) + (a.session === 'expired' ? ' (needs login)' : a.resting_seconds ? ' (resting - TikTok just refused it)' : ''))));
+  readSel.onchange = () => { S.readAccount = readSel.value; };
+  renderStats(); renderRecent(S.dash.recent_posts);
+  loadHealth(); pollActivity();
+  if (S.result) renderResults();
+  try { const cur = await api('GET', '/api/analyze'); if (cur.job && !cur.job.finished) { S.job = cur.job; trackJob(); } else if (cur.job && !S.result && cur.job.outcome === 'done') { await openPost(cur.job.video_id); } } catch (e) {}
+};
+async function loadHealth() {
+  let r; try { r = await api('GET', '/api/health?net=1'); } catch (e) { return; }
+  const box = $('#health'); if (!box) return; clear(box); const bad = r.items.filter(i => i.status !== 'ok'); if (!bad.length) return;
+  box.append(h('div', { class: 'banner ' + (r.status === 'fail' ? 'bad' : 'warn'), 'data-role': 'setup' }, icon('alert'), h('div', { style: 'display:grid;gap:6px' },
+    h('b', {}, r.status === 'fail' ? 'Something needs fixing before the app can work' : 'Worth a look'),
+    bad.map(i => h('div', { 'data-check': i.id }, h('b', {}, i.title + ': '), i.detail, i.fix ? h('span', { class: 'muted' }, '  ' + i.fix) : null)),
+    h('a', { href: '#/help' }, 'More in Help - Diagnostics'))));
+}
+async function pasteUrl() {
+  try { const t = await navigator.clipboard.readText(); if (t) { $('#url-input').value = t.trim(); $('#url-input').focus(); return; } } catch (e) {}
+  $('#url-input').focus(); const err = clear($('#url-error')); err.append(h('div', { class: 'err' }, 'Press ', h('span', { class: 'kbd', style: 'color:#161a30' }, 'Ctrl+V'), ' to paste the link.'));
+}
+async function analyze(urlOverride) {
+  const input = $('#url-input'); const url = (urlOverride || input.value).trim(); const err = clear($('#url-error'));
+  if (!url) { err.append(h('div', { class: 'err' }, 'Paste a TikTok post link first.')); input.focus(); return; }
+  S.homeUrl = url; $('#analyze-btn').disabled = true;
+  try { S.job = await api('POST', '/api/analyze', { url, account: S.readAccount || null }); S.result = null; clear($('#results')); trackJob(); pollActivity(); }
+  catch (e) { $('#analyze-btn').disabled = false; if (e.code === 'busy' && e.data.job) { S.job = e.data.job; trackJob(); return; } err.append(h('div', { class: 'err' }, e.message)); }
+}
+function trackJob() {
+  /* ONE polling chain per page, and a finished job is opened ONCE: the Home page and the Find button can both start tracking the
+     same job, and a second render of the results would wipe a reply box the person already opened. */
+  const box = $('#progress'); if (!box || !S.job) return; const j = S.job;
+  if (S.jobTimer) { clearTimeout(S.jobTimer); S.timers.delete(S.jobTimer); S.jobTimer = null; }
+  clear(box); $('#analyze-btn') && ($('#analyze-btn').disabled = !j.finished);
+  const order = ['queued', 'reading', 'analysing']; const idx = order.indexOf(j.state);
+  const pct = j.progress && j.progress.total ? Math.min(100, Math.round(100 * j.progress.read / j.progress.total)) : null;
+  if (!j.finished) {
+    box.append(h('div', { class: 'card progress-card', 'data-role': 'progress' }, h('div', { class: 'row sp' }, h('div', { class: 'row' }, spinner(), h('b', {}, j.message)), h('button', { class: 'btn sm danger', onclick: () => api('POST', '/api/analyze/' + j.id + '/cancel', {}).catch(() => {}) }, icon('x', 14), 'Stop')),
+      h('div', { class: 'steps' }, [['Open the post', 0], ['Read the comments', 1], ['Find the negative ones', 2]].map(([t, i]) => h('div', { class: 'step ' + (idx === i ? 'on' : idx > i ? 'done' : '') }, idx > i ? icon('check', 14) : null, t))),
+      pct !== null ? h('div', { class: 'bar' }, h('i', { style: 'width:' + pct + '%' })) : h('div', { class: 'bar' }, h('i', { style: 'width:12%;opacity:.55' }))));
+    S.jobTimer = later(async () => { S.jobTimer = null; try { S.job = await api('GET', '/api/analyze/' + j.id); } catch (e) { return; } trackJob(); }, 900);
+  } else if (j.outcome === 'done') { if (S.openedJob !== j.id) { S.openedJob = j.id; openPost(j.video_id, j); } }
+  else if (j.outcome === 'cancelled') { box.append(h('div', { class: 'banner' }, icon('x'), 'Stopped. Nothing was changed.')); }
+  else { box.append(h('div', { class: 'banner bad', 'data-role': 'job-error' }, icon('alert'), h('div', {}, h('b', {}, 'Could not analyse this post. '), j.message))); }
+}
+async function openPost(videoId, job) {
+  S.result = await api('GET', '/api/analysis/' + videoId); S.resultJob = job || null; S.filter = S.result.counts.negative ? 'negative' : (S.result.counts.question ? 'question' : 'negative');
+  const box = $('#progress'); if (box) clear(box); renderResults(); loadDash().catch(() => {}); if ($('#results')) $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderResults() {
+  const box = $('#results'); if (!box || !S.result) return; clear(box); const r = S.result, c = r.counts; const post = r.post;
+  const note = S.resultJob && S.resultJob.note;
+  const shown = r.comments.filter(x => S.filter === 'all' ? true : x.status === S.filter);
+  box.append(h('div', { class: 'card', 'data-role': 'results' },
+    h('div', { class: 'post-head' }, h('div', { class: 'post-ico' }, icon('replies', 22)),
+      h('div', { class: 'grow', style: 'min-width:0' }, h('h3', {}, post.author ? '@' + post.author : 'TikTok post'), h('div', { class: 'desc' }, post.description || post.url || ''),
+        h('div', { class: 'row', style: 'margin-top:8px' }, chip(c.total + ' comments read', 'info'), chip(c.negative + ' negative', c.negative ? 'bad' : 'ok'), chip(c.question + ' question' + (c.question === 1 ? '' : 's'), c.question ? 'warn' : ''),
+          post.last_checked_at ? h('span', { class: 'muted small' }, 'checked ' + ago(post.last_checked_at)) : null)),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => analyze(post.url) }, icon('refresh', 14), 'Read again'),
+        post.url ? h('a', { class: 'btn sm', href: post.url, target: '_blank', rel: 'noopener' }, icon('link', 14), 'Open on TikTok') : null)),
+    note ? h('div', { class: 'banner warn mt' }, icon('alert'), note) : null,
+    h('div', { class: 'tabs' }, [['negative', 'Negative', c.negative], ['question', 'Questions', c.question], ['all', 'All comments', c.total]].map(([id, label, n]) =>
+      h('button', { class: 'tab' + (S.filter === id ? ' on' : ''), 'data-filter': id, onclick: () => { S.filter = id; renderResults(); } }, label, h('span', { class: 'n' }, n)))),
+    h('div', { id: 'comment-list', class: 'grid' }, shown.length ? shown.map(commentCard) : h('div', { class: 'empty' }, h('div', { class: 'big' }, S.filter === 'negative' ? '🎉' : '💬'),
+      h('b', {}, S.filter === 'negative' ? 'No negative comments found' : S.filter === 'question' ? 'No questions found' : 'No comments'),
+      S.filter === 'negative' ? 'Nice - everyone is being kind on this post.' : 'Nothing to show here.')),
+    h('div', { class: 'mt2' }, h('div', { class: 'row sp' }, h('b', {}, 'Write a new comment on this post'), h('button', { class: 'btn sm', id: 'post-comment-toggle', onclick: togglePostComment }, icon('edit', 14), 'Comment on the post')), h('div', { id: 'post-comment' }))));
+}
+function togglePostComment() {
+  const box = $('#post-comment'); if (box.firstChild) { clear(box); return; }
+  const url = S.result.post.url; box.append(h('div', { class: 'mt' }, Composer({ needsBrief: true, placeholder: 'Your comment on the post...', sendLabel: 'Post comment',
+    createCard: async account => api('POST', '/api/comments/link', { link: url, text: '', account }), onCard: () => loadDash().catch(() => {}) })));
+}
+function sevChip(c) { const m = { 1: ['Mild', 'warn'], 2: ['Serious', 'warn'], 3: ['Hostile', 'bad'] }[c.severity]; return m ? chip(m[0], m[1]) : null; }
+const CAT = { price: 'Price', delivery: 'Delivery', quality: 'Quality', service: 'Service', scam: 'Scam accusation', other: 'Other' };
+function commentCard(c) {
+  const holder = h('div'); let open = false; let cardView = null;
+  const replyBtn = h('button', { class: 'btn sm primary', 'data-act': 'reply', onclick: toggle }, icon('replies', 14), c.card && c.card.status === 'posted' ? 'View reply' : 'Reply');
+  async function toggle() {
+    if (open) { clear(holder); open = false; return; } open = true; replyBtn.disabled = true;
+    try {
+      const v = (c.card && c.card.status === 'posted') ? await api('GET', '/api/approvals/' + c.card.id)
+        : await api('POST', '/api/comments/' + S.result.post.video_id + '/' + c.cid + '/reply', { account: null }); cardView = v; c.card = { id: v.id, status: v.status, reply: v.reply, account: v.account, posted_by: v.posted_by };
+      const comp = Composer({ getCard: () => cardView, createCard: async () => cardView, initialAccount: v.account || S.readAccount || '', onCard: nv => { cardView = nv; c.card = { id: nv.id, status: nv.status, reply: nv.reply, account: nv.account, posted_by: nv.posted_by }; flag(); loadDash().catch(() => {}); } });
+      clear(holder).append(comp); const ta = $('textarea', comp); if (ta && !ta.value) ta.focus();
+    } catch (e) { open = false; clear(holder).append(h('div', { class: 'banner bad' }, icon('alert'), e.message)); } finally { replyBtn.disabled = false; }
+  }
+  const flagBox = h('span'); function flag() { clear(flagBox); if (c.card && c.card.status === 'posted') flagBox.append(chip('Replied', 'ok', 'check')); else if (c.card && c.card.status === 'posting') flagBox.append(chip('Sending...', 'info')); else if (c.card && ['pending', 'approved', 'post_failed'].includes(c.card.status)) flagBox.append(chip('Draft saved', '')); } flag();
+  return h('article', { class: 'cc', 'data-cid': c.cid },
+    h('div', { class: 'cc-top' }, h('div', { class: 'avatar' }, (c.username || '?').replace('@', '').slice(0, 1)),
+      h('div', { class: 'grow' }, h('div', { class: 'who' }, '@' + (c.username || 'unknown')), h('div', { class: 'meta' }, c.created_ts ? h('span', {}, ago(c.created_ts)) : null, h('span', { class: 'row', style: 'gap:4px' }, icon('heart', 13), num(c.likes)))),
+      h('div', { class: 'row' }, c.status === 'negative' ? sevChip(c) : null, c.status === 'question' ? chip('Question', 'info') : null, c.status === 'negative' && c.category ? chip(CAT[c.category] || c.category, '') : null, flagBox)),
+    h('div', { class: 'cc-text' }, c.text),
+    c.reason && c.status !== 'ok' ? h('div', { class: 'why' }, 'Why flagged: ' + c.reason) : null,
+    h('div', { class: 'cc-actions' }, replyBtn), holder);
+}
+function renderRecent(list) {
+  const box = $('#recent'); if (!box) return; clear(box); if (!list || !list.length) return;
+  box.append(h('div', { class: 'row sp', style: 'margin-bottom:10px' }, h('b', {}, 'Recent posts')), h('div', { class: 'grid g2' }, list.map(p => h('button', { class: 'card', style: 'text-align:left;display:grid;gap:6px', 'data-video': p.video_id, onclick: () => { S.homeUrl = p.url; $('#url-input').value = p.url; openPost(p.video_id).catch(e => showError(e.message)); } },
+    h('div', { class: 'row sp' }, h('b', {}, p.author ? '@' + p.author : 'TikTok post'), h('span', { class: 'muted small' }, ago(p.last_checked_at))),
+    h('div', { class: 'muted small', style: 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden' }, p.description || p.url),
+    h('div', { class: 'row' }, chip(p.negatives + ' negative', p.negatives ? 'bad' : 'ok'), chip(p.questions + ' questions', p.questions ? 'warn' : ''), chip(p.stored + ' stored', ''))))));
+}
+
+/* ================================================================ REPLIES */
+routes.replies = async function (view) {
+  const state = { filter: 'all' }; const list = h('div', { class: 'grid', id: 'replies-list' }, [0, 1, 2].map(() => h('div', { class: 'skel' })));
+  const tabs = h('div', { class: 'tabs', style: 'margin-top:0' }); view.append(tabs, list);
+  let items = [];
+  const groups = { all: () => true, waiting: a => ['pending', 'approved', 'post_failed', 'posting'].includes(a.status), sent: a => a.status === 'posted', discarded: a => a.status === 'rejected' };
+  const names = { all: 'All', waiting: 'Waiting', sent: 'Sent', discarded: 'Discarded' };
+  function draw() {
+    clear(tabs).append(...Object.keys(groups).map(k => h('button', { class: 'tab' + (state.filter === k ? ' on' : ''), 'data-filter': k, onclick: () => { state.filter = k; draw(); } }, names[k], h('span', { class: 'n' }, items.filter(groups[k]).length))));
+    const shown = items.filter(groups[state.filter]); clear(list);
+    if (!shown.length) { list.append(h('div', { class: 'empty card' }, h('div', { class: 'big' }, '✉️'), h('b', {}, 'Nothing here yet'), 'Replies you write on the Home page show up here.')); return; }
+    shown.forEach(a => list.append(row(a)));
+  }
+  function row(a) {
+    const tone = a.checked === 'absent' ? 'ok' : (a.interrupted || a.checked) ? 'warn' : { posted: 'ok', post_failed: 'bad', posting: 'info', pending: '', approved: 'warn', rejected: '' }[a.status] || '';
+    const label = a.checking ? 'Checking...' : a.checked === 'absent' ? 'Not sent' : a.checked === 'maybe' ? 'Maybe sent' : a.interrupted ? 'Check on TikTok' : { posted: 'Sent', post_failed: 'Failed', posting: 'Sending...', pending: 'Draft', approved: 'Saved - posting was off', rejected: 'Discarded', expired: 'Expired' }[a.status] || a.status;
+    const holder = h('div'); const canEdit = a.can && a.can.edit;
+    const el = h('article', { class: 'list-row', 'data-id': a.id }, h('div', { class: 'row sp' }, h('div', { class: 'row' }, chip(a.kind === 'link_post' ? 'Comment on post' : 'Reply to comment', 'info'), chip(label, tone), a.account_label ? chip('as ' + a.account_label, '') : null),
+      h('span', { class: 'muted small' }, ago(a.posted_at || a.updated_at))),
+      a.comment && a.comment.text ? h('div', { class: 'quote' }, h('b', { style: 'color:var(--ink)' }, '@' + (a.comment.username || '?') + ': '), a.comment.text) : null,
+      a.reply ? h('div', {}, h('span', { class: 'muted small' }, 'Your reply: '), a.reply) : h('div', { class: 'muted small' }, 'No text yet'),
+      a.interrupted || a.checked ? h('div', { class: 'banner ' + (a.checked === 'absent' ? 'ok' : 'warn'), 'data-role': a.interrupted ? 'interrupted' : 'check-result' }, icon(a.checked === 'absent' ? 'check' : 'alert'), h('div', {}, a.error)) : null,
+      a.checking ? h('div', { class: 'banner', 'data-role': 'checking' }, spinner(), 'Checking on TikTok...') : null,
+      a.check && a.check.outcome === 'error' ? h('div', { class: 'banner bad', 'data-role': 'check-result' }, icon('alert'), h('div', {}, a.check.message)) : null,
+      a.target && a.target.video_url ? h('a', { class: 'small', href: a.target.video_url, target: '_blank', rel: 'noopener' }, 'Open the post on TikTok') : null,
+      a.status === 'posted' && a.proof_file ? h('div', { class: 'proof' }, h('img', { src: shot(a.proof_file), alt: 'proof', onclick: () => proofModal(a.proof_file) }), h('span', { class: 'small muted' }, 'Proof - click to enlarge')) : null,
+      h('div', { class: 'row' }, a.can_check && !a.checking ? h('button', { class: 'btn sm', 'data-act': 'verify', onclick: async e => { e.target.closest('button').disabled = true;
+          try { await checkOnTikTok(a.id, v => Object.assign(a, v)); } catch (er) { showError(er.message); } load(); } }, icon('search', 14), 'Check on TikTok') : null,
+        canEdit ? h('button', { class: 'btn sm primary', 'data-act': 'edit', onclick: e => { if (holder.firstChild) { clear(holder); return; } holder.append(Composer({ getCard: () => a, createCard: async () => a, sendLabel: a.status === 'post_failed' ? 'Try again' : 'Send reply', onCard: nv => { Object.assign(a, nv); loadDash().catch(() => {}); } })); } }, icon('edit', 14), a.status === 'post_failed' ? 'Edit & try again' : 'Edit & send') : null,
+        canEdit ? h('button', { class: 'btn sm danger ghost', 'data-act': 'discard', onclick: () => confirmBox('Discard this reply?', 'It will not be sent.', 'Discard', async () => { await api('POST', '/api/approvals/' + a.id + '/ignore').catch(e => showError(e.message)); load(); }) }, icon('trash', 14), 'Discard') : null), holder);
+    if (a.status === 'posting') watchCard(a.id, v => { if (v) { Object.assign(a, v); load(); } });
+    if (a.checking) (async () => { for (let i = 0; i < 400 && a.checking; i++) { await sleep(1500); try { Object.assign(a, await api('GET', '/api/approvals/' + a.id)); } catch (e) { return; } } load(); })();
+    return el;
+  }
+  async function load() { items = (await api('GET', '/api/approvals?status=all&limit=100')).approvals; draw(); loadDash().catch(() => {}); }
+  await load();
+};
+
+/* ================================================================ ACCOUNTS */
+routes.accounts = async function (view) {
+  const flowBox = h('div', { id: 'flow-box' }); const listBox = h('div', { class: 'grid', id: 'accounts-list' }, [0, 1].map(() => h('div', { class: 'skel' })));
+  const browserSel = h('select', { id: 'add-browser' }, h('option', { value: 'auto' }, 'Browser: auto'));
+  view.append(h('div', { class: 'card' }, h('div', { class: 'row sp' }, h('div', {}, h('h3', {}, 'Add an account'), h('p', { class: 'lead', style: 'margin:0' }, 'A fresh browser window opens on TikTok. Log in there - we notice it, save the account and close the window for you.')),
+    h('div', { class: 'row' }, browserSel, h('button', { class: 'btn primary', id: 'add-account', onclick: addAccount }, icon('plus', 16), 'Add account')))), flowBox, h('div', { class: 'row sp mt2', style: 'margin-bottom:10px' }, h('b', {}, 'Your accounts'), h('button', { class: 'btn sm', id: 'check-all', onclick: async e => { e.target.disabled = true; await api('POST', '/api/accounts/check-all').catch(() => {}); later(refresh, 6000); later(refresh, 20000); later(() => { e.target.disabled = false; }, 4000); } }, icon('refresh', 14), 'Check all')), listBox);
+  async function refresh() { const d = await loadAccounts(); if (browserSel.options.length === 1) d.browsers.forEach(b => browserSel.append(h('option', { value: b.kind }, b.name))); drawFlow(d.flow); drawList(); loadDash().catch(() => {}); return d; }
+  async function addAccount(e) { e.target.disabled = true; try { drawFlow(await api('POST', '/api/accounts/add', { browser: browserSel.value })); } catch (err) { showError(err.message); } e.target.disabled = false; }
+  function drawFlow(f) {
+    clear(flowBox); if (!f || (f.finished && Date.now() / 1000 - f.updated_at > 300)) return;
+    const tone = f.finished ? (f.state === 'failed' ? 'failed' : 'done') : '';
+    flowBox.append(h('div', { class: 'flow mt ' + tone, 'data-role': 'flow', 'data-state': f.state }, h('div', { class: 'row sp' }, h('div', { class: 'row' }, f.finished ? icon(f.state === 'failed' ? 'alert' : 'check', 18) : spinner(), h('b', {}, f.finished ? ({ added: 'Account added', refreshed: 'Account logged in again', duplicate: 'Already added', cancelled: 'Cancelled', timeout: 'Timed out', failed: 'Could not add the account' }[f.outcome] || 'Done') : f.state === 'window_open' ? 'Waiting for you to log in' : 'Working...')),
+      f.finished ? h('button', { class: 'btn sm', onclick: () => clear(flowBox) }, 'Close') : h('button', { class: 'btn sm danger', onclick: () => api('POST', '/api/accounts/add/cancel', {}).catch(() => {}) }, icon('x', 14), 'Cancel')), h('div', { class: 'mt', 'data-role': 'flow-message' }, f.message),
+      f.state === 'window_open' ? h('div', { class: 'muted small', style: 'margin-top:6px' }, 'Look for the new browser window and log in the way you always do. You do not need to close it.') : null));
+    if (!f.finished) later(async () => { try { const cur = await api('GET', '/api/accounts/add'); drawFlow(cur.flow); if (cur.flow && cur.flow.finished) refresh(); } catch (e) {} }, 1000);
+  }
+  function drawList() {
+    clear(listBox); if (!S.accounts.length) { listBox.append(h('div', { class: 'empty card' }, h('div', { class: 'big' }, '👤'), h('b', {}, 'No accounts yet'), 'Add an account above to start replying.')); return; }
+    S.accounts.forEach(a => listBox.append(accountRow(a, refresh)));
+  }
+  await refresh();
+};
+function accountRow(a, refresh) {
+  const btn = (label, ic, fn, cls) => h('button', { class: 'btn sm ' + (cls || ''), onclick: async e => { e.target.closest('button').disabled = true; try { await fn(); } catch (err) { showError(err.message); } await refresh(); } }, icon(ic, 14), label);
+  return h('div', { class: 'acct', 'data-account': a.name }, h('div', { class: 'avatar' }, (a.username || a.label || a.name).slice(0, 1)),
+    h('div', { class: 'grow' }, h('div', { class: 'row' }, h('span', { class: 'name' }, a.label), a.username ? h('span', { class: 'muted' }, (a.label === '@' + a.username ? '' : '@' + a.username) + (a.region ? (a.label === '@' + a.username ? '' : '  ·  ') + a.region : '')) : null),
+      h('div', { class: 'row', style: 'margin-top:5px' }, sessionChip(a), a.resting_seconds ? chip('Resting ~' + Math.max(1, Math.ceil(a.resting_seconds / 60)) + ' min', 'warn', 'alert') : null, a.is_master ? chip('Page account', 'info') : null, a.preferred ? chip('Answers first', 'ok', 'star') : null, a.enabled ? null : chip('Switched off', 'warn'),
+        a.session_checked_at ? h('span', { class: 'muted small' }, 'checked ' + ago(a.session_checked_at.replace(' ', 'T'))) : null)),
+    h('div', { class: 'row' },
+      btn('Check', 'refresh', async () => { const r = await api('POST', '/api/accounts/' + a.name + '/check'); if (!r.ok) throw new Error('Could not check: ' + r.error); }),
+      a.is_master ? null : btn('Log in again', 'users', () => api('POST', '/api/accounts/' + a.name + '/relogin', { browser: ($('#add-browser') || {}).value || 'auto' }), a.session === 'expired' ? 'primary' : ''),
+      a.is_master || !a.enabled ? null : btn(a.preferred ? 'Not first' : 'Answer first', 'star', () => api('PUT', '/api/accounts/first', { name: a.preferred ? null : a.name })),
+      a.is_master ? null : btn(a.enabled ? 'Switch off' : 'Switch on', 'check', () => api('PATCH', '/api/accounts/' + a.name, { enabled: !a.enabled })),
+      a.is_master ? null : h('button', { class: 'btn sm danger ghost', 'data-act': 'remove', onclick: () => confirmBox('Remove ' + a.label + '?', 'Its saved browser login is deleted from this computer. You can add it again later.', 'Remove', async () => { try { await api('DELETE', '/api/accounts/' + a.name); } catch (e) { showError(e.message); } refresh(); }) }, icon('trash', 14))));
+}
+
+/* ================================================================ AI & BRAND */
+routes.ai = async function (view) {
+  const s = await api('GET', '/api/settings'); const ins = s.ai_instructions, ctx = s.company_context;
+  const insTa = h('textarea', { id: 'ai-instructions', style: 'min-height:170px' }); insTa.value = ins.value;
+  const ctxTa = h('textarea', { id: 'ai-context', style: 'min-height:260px', placeholder: 'What you sell, addresses, opening hours, shipping and return policies, payment methods, FAQs...' }); ctxTa.value = ctx.value;
+  const insCount = h('span', { class: 'muted small' }), ctxCount = h('span', { class: 'muted small' });
+  const insMsg = h('span', { class: 'small' }), ctxMsg = h('span', { class: 'small' });
+  const flash = (el, text, bad) => { el.textContent = text; el.style.color = bad ? 'var(--bad)' : 'var(--ok)'; later(() => { el.textContent = ''; }, 3500); };
+  const upd = () => { insCount.textContent = insTa.value.length + ' / ' + ins.max_chars; ctxCount.textContent = ctxTa.value.length + ' / ' + ctx.max_chars; }; insTa.oninput = ctxTa.oninput = upd; upd();
+  async function put(patch, msgEl, okText) { try { const r = await api('PUT', '/api/settings', patch); flash(msgEl, okText); return r; } catch (e) { flash(msgEl, e.message, true); } }
+  const addIn = h('input', { type: 'text', id: 'ai-context-add', placeholder: 'Add one more fact, e.g. "We open Monday to Saturday, 9am to 6pm"' });
+  const testIn = h('input', { type: 'text', id: 'ai-test-input', placeholder: 'Type a sample comment, e.g. "O produto veio com defeito"' }); const testOut = h('div', { id: 'ai-test-out', class: 'mt' });
+  view.append(h('div', { class: 'grid g2' },
+    h('div', { class: 'card' }, h('h3', {}, 'How the AI replies'), h('p', { class: 'lead' }, 'Tone and rules for every reply it writes. It always answers in the language of the comment.'), insTa,
+      h('div', { class: 'row sp mt' }, h('div', { class: 'row' }, insCount, insMsg, ins.is_default ? chip('Default', '') : chip('Custom', 'ok')), h('div', { class: 'row' },
+        h('button', { class: 'btn sm', onclick: async () => { const r = await api('POST', '/api/settings/ai-instructions/reset'); insTa.value = r.ai_instructions.value; upd(); flash(insMsg, 'Back to the default'); } }, 'Use default'),
+        h('button', { class: 'btn sm', disabled: !ins.can_undo, onclick: async e => { try { const r = await api('POST', '/api/settings/ai-instructions/undo'); insTa.value = r.ai_instructions.value; upd(); flash(insMsg, 'Previous version restored'); } catch (er) { flash(insMsg, er.message, true); } } }, 'Undo'),
+        h('button', { class: 'btn sm primary', id: 'save-instructions', onclick: () => put({ ai_instructions: insTa.value }, insMsg, 'Saved') }, 'Save'))),
+      h('div', { class: 'mt2' }, h('b', {}, 'Try it'), h('p', { class: 'lead', style: 'margin:2px 0 8px' }, 'See the reply a sample comment would get (uses 1 AI request).'),
+        h('div', { class: 'row' }, h('div', { class: 'grow' }, testIn), h('button', { class: 'btn', id: 'ai-test', onclick: async e => { e.target.closest('button').disabled = true; clear(testOut).append(spinner()); try { const r = await api('POST', '/api/ai/test', { text: testIn.value }); clear(testOut).append(h('div', { class: 'banner ok' }, icon('ai'), h('div', {}, r.reply))); } catch (er) { clear(testOut).append(h('div', { class: 'banner bad' }, icon('alert'), er.message)); } e.target.closest('button').disabled = false; } }, icon('ai', 15), 'Test')), testOut)),
+    h('div', { class: 'card' }, h('h3', {}, 'Company information'), h('p', { class: 'lead' }, 'Facts the AI may use when it answers: what you sell, hours, shipping, returns... It never invents facts that are not here.'), ctxTa,
+      h('div', { class: 'row mt', style: 'flex-wrap:nowrap' }, h('div', { class: 'grow' }, addIn), h('button', { class: 'btn sm', id: 'add-context', onclick: async () => { if (!addIn.value.trim()) return; const r = await put({ company_context: addIn.value, company_context_append: true }, ctxMsg, 'Added'); if (r) { ctxTa.value = r.company_context.value; addIn.value = ''; upd(); } } }, icon('plus', 14), 'Add')),
+      h('div', { class: 'row sp mt' }, h('div', { class: 'row' }, ctxCount, ctxMsg, h('span', { class: 'muted small' }, ctx.sections + ' section' + (ctx.sections === 1 ? '' : 's'))), h('div', { class: 'row' },
+        h('label', { class: 'btn sm' }, icon('up', 14), 'Upload .txt', h('input', { type: 'file', accept: '.txt,.md,text/plain', style: 'display:none', onchange: e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { ctxTa.value = String(rd.result); upd(); flash(ctxMsg, 'Loaded - press Save'); }; rd.readAsText(f); } })),
+        h('button', { class: 'btn sm', onclick: () => { const url = URL.createObjectURL(new Blob([ctxTa.value], { type: 'text/plain' })); const a = h('a', { href: url, download: 'company_context.txt' }); document.body.append(a); a.click(); a.remove(); } }, icon('down', 14), 'Download'),
+        h('button', { class: 'btn sm', disabled: !ctx.can_undo, onclick: async () => { try { const r = await api('POST', '/api/settings/company-context/undo'); ctxTa.value = r.company_context.value; upd(); flash(ctxMsg, 'Previous version restored'); } catch (er) { flash(ctxMsg, er.message, true); } } }, 'Undo'),
+        h('button', { class: 'btn sm danger', onclick: () => confirmBox('Clear the company information?', 'The AI will know nothing about your company until you add it again (Undo can bring it back).', 'Clear', async () => { const r = await api('POST', '/api/settings/company-context/reset'); ctxTa.value = r.company_context.value; upd(); flash(ctxMsg, 'Cleared'); }) }, 'Clear'),
+        h('button', { class: 'btn sm primary', id: 'save-context', onclick: () => put({ company_context: ctxTa.value }, ctxMsg, 'Saved') }, 'Save')))))
+  );
+};
+
+/* ================================================================ CONTROLS */
+routes.controls = async function (view) {
+  const s = await api('GET', '/api/settings'); await loadDash(); const d = S.dash;
+  const msg = id => h('span', { class: 'small', id });
+  const flash = (id, text, bad) => { const el = $('#' + id); if (!el) return; el.textContent = text; el.style.color = bad ? 'var(--bad)' : 'var(--ok)'; later(() => { el.textContent = ''; }, 3500); };
+  const save = async (patch, id, okText) => { try { await api('PUT', '/api/settings', patch); flash(id, okText); loadDash().catch(() => {}); } catch (e) { flash(id, e.message, true); } };
+  const cap = h('input', { type: 'number', id: 'cap-input', min: 0, max: 500, value: s.link_comments_per_day, style: 'width:110px' });
+  const readSel = h('select', { id: 'read-limit' }, [40, 100, 240, 500, 1000].map(n => h('option', { value: n, selected: n === s.read_limit }, n + ' comments')));
+  if (![40, 100, 240, 500, 1000].includes(s.read_limit)) readSel.append(h('option', { value: s.read_limit, selected: true }, s.read_limit + ' comments'));
+  const budget = h('input', { type: 'number', id: 'budget-input', min: 0, max: 1000, value: s.ai_budget.daily_requests, style: 'width:110px' });
+  const keyIn = h('input', { type: 'password', id: 'key-input', placeholder: s.ai_key.set ? 'Paste a new key to replace it' : 'Paste your OpenRouter API key', autocomplete: 'off' });
+  const brand = h('input', { type: 'text', id: 'brand-input', value: s.brand_name });
+  const clean = h('div', { id: 'clean-out' });
+  view.append(h('div', { class: 'grid g2' },
+    h('div', { class: 'card' }, h('div', { class: 'row sp', style: 'flex-wrap:nowrap;align-items:flex-start' }, h('div', {}, h('h3', {}, 'Posting'), h('p', { class: 'lead', style: 'margin:0' }, 'The master switch. When it is OFF you can still write replies - they are saved but never sent.')), switchEl(s.posting_enabled, v => setPosting(v), 'ctl-posting')),
+      h('div', { class: 'mt' }, s.posting_enabled ? h('div', { class: 'banner ok' }, icon('check'), 'Posting is ON - the replies you send go out to TikTok.') : h('div', { class: 'banner warn' }, icon('alert'), 'Posting is OFF - nothing is being sent.'))),
+    h('div', { class: 'card' }, h('h3', {}, 'Limits'), h('p', { class: 'lead' }, 'These protect your accounts from looking like spam, and your free AI quota.'),
+      h('div', { class: 'grid' }, h('label', { class: 'field' }, 'Replies per day', h('small', {}, '0 means no limit. Counted per day (UTC).'), h('div', { class: 'row' }, cap, h('button', { class: 'btn sm', id: 'save-cap', onclick: () => save({ link_comments_per_day: parseInt(cap.value, 10) }, 'cap-msg', 'Saved') }, 'Save'), msg('cap-msg'))),
+        h('label', { class: 'field' }, 'Read up to', h('small', {}, 'How many comments of a post are read. More takes longer.'), h('div', { class: 'row' }, readSel, h('button', { class: 'btn sm', id: 'save-read', onclick: () => save({ read_limit: parseInt(readSel.value, 10) }, 'read-msg', 'Saved') }, 'Save'), msg('read-msg'))),
+        h('label', { class: 'field' }, 'AI requests per day', h('small', {}, 'The free OpenRouter tier allows only a few dozen. Used today: ' + s.ai_budget.used + '.'), h('div', { class: 'row' }, budget, h('button', { class: 'btn sm', id: 'save-budget', onclick: () => save({ ai_daily_requests: parseInt(budget.value, 10) }, 'budget-msg', 'Saved') }, 'Save'), msg('budget-msg'))))),
+    h('div', { class: 'card' }, h('h3', {}, 'AI connection'), h('p', { class: 'lead' }, 'The app uses OpenRouter to write replies and judge comments.'),
+      h('div', { class: 'row', style: 'margin-bottom:10px' }, s.ai_key.set ? chip('Key set  ' + (s.ai_key.hint || ''), 'ok', 'check') : chip('No key yet', 'bad', 'alert')),
+      h('div', { class: 'grid' }, h('label', { class: 'field' }, 'OpenRouter API key', h('div', { class: 'row' }, h('div', { class: 'grow' }, keyIn), h('button', { class: 'btn sm primary', id: 'save-key', onclick: async () => { await save({ openrouter_api_key: keyIn.value }, 'key-msg', 'Saved'); keyIn.value = ''; routes.controls(clear($('#view'))); } }, 'Save'), msg('key-msg'))),
+        h('label', { class: 'field' }, 'Brand name', h('small', {}, 'The business the AI speaks for.'), h('div', { class: 'row' }, h('div', { class: 'grow' }, brand), h('button', { class: 'btn sm', id: 'save-brand', onclick: () => save({ brand_name: brand.value }, 'brand-msg', 'Saved') }, 'Save'), msg('brand-msg'))))),
+    h('div', { class: 'card' }, h('h3', {}, 'Housekeeping'), h('p', { class: 'lead' }, 'Old screenshots and stored comments are tidied when the app starts. You can do it now too.'),
+      h('div', { class: 'row' }, h('button', { class: 'btn', id: 'cleanup', onclick: async e => { const b = e.target.closest('button'); b.disabled = true; clear(clean).append(spinner()); try { const r = await api('POST', '/api/maintenance/cleanup?wait=1'); clear(clean).append(h('span', { class: 'small', style: 'color:var(--ok)' }, 'Done - freed about ' + r.freed_mb + ' MB. Database ' + r.db_before_mb + ' -> ' + r.db_after_mb + ' MB.')); } catch (er) { clear(clean).append(h('span', { class: 'small', style: 'color:var(--bad)' }, er.message)); } b.disabled = false; } }, icon('broom', 15), 'Free disk space'), clean),
+      h('div', { class: 'muted small mt' }, 'Nothing runs in the background: the app only works while it is open and only when you ask it to.'))));
+};
+
+/* ================================================================ HELP */
+routes.help = async function (view) {
+  const step = (n, t, d) => h('div', { class: 'card' }, h('div', { class: 'chip info', style: 'margin-bottom:8px' }, 'Step ' + n), h('h3', {}, t), h('p', { class: 'lead', style: 'margin:0' }, d));
+  view.append(h('div', { class: 'grid g4' }, step(1, 'Paste a link', 'On Home, paste the link of any TikTok post (a vm.tiktok.com short link works too).'), step(2, 'Review', 'We read the comments and show the negative ones first, with why they were flagged.'),
+    step(3, 'Reply', 'Press Reply, let the AI write it or write your own, pick the account and send.'), step(4, 'Check the proof', 'After sending, a screenshot of the reply is shown right under it.')),
+    h('div', { class: 'grid g2 mt' }, h('div', { class: 'card' }, h('h3', {}, 'Good to know'), h('ul', { class: 'muted', style: 'margin:0;padding-left:18px;display:grid;gap:7px' },
+      h('li', {}, 'Nothing runs by itself: no monitoring, no notifications. Close the window and everything stops - except a reply that is being sent: the app finishes that first (the black console window stays open until then).'), h('li', {}, 'If Posting is OFF (sidebar), replies are saved but not sent.'),
+      h('li', {}, 'After a reply or a read, one browser stays open for a few minutes so the next one is quick - then it closes by itself.'),
+      h('li', {}, 'TikTok limits how often a profile page may be opened. When it says no, the app moves to another account at once; give an account a few minutes before using it again.'),
+      h('li', {}, 'If an account shows "Needs login", press Log in again on the Accounts page.'), h('li', {}, 'TikTok sometimes shows a security check; wait a few minutes or read with another account.'),
+      h('li', {}, 'A reply is at most 150 characters; longer text is shortened.'))),
+      h('div', { class: 'card' }, h('h3', {}, 'Coming from Telegram?'), h('table', { class: 'map' }, h('tr', {}, h('th', {}, 'Telegram'), h('th', {}, 'Here')),
+        [['/ai', 'AI & Brand - How the AI replies'], ['/ai_context', 'AI & Brand - Company information'], ['/status', 'Home - the four tiles'], ['/pending', 'Replies'], ['/accounts', 'Accounts'], ['/budget', 'Controls - AI requests per day'], ['/comment <link>', 'Home - paste the link, or Comment on the post'], ['/cleanup', 'Controls - Housekeeping'], ['/watch, /posts, /questions, /backfill', 'Not needed: nothing is watched in the background']].map(([a, b]) => h('tr', {}, h('td', {}, h('span', { class: 'kbd' }, a)), h('td', {}, b)))))),
+    diagnosticsCard());
+};
+
+function diagnosticsCard() {
+  const out = h('div', { id: 'diag-out', class: 'mt' }); let report = '';
+  const run = async e => {
+    const b = e.target.closest('button'); b.disabled = true; clear(out).append(spinner());
+    try {
+      const d = await api('GET', '/api/diagnostics'); const tone = { ok: 'ok', warn: 'warn', fail: 'bad' };
+      report = ['TikTok Guard ' + d.app.version + ' diagnostics', 'Python ' + d.app.python + ' - ' + d.app.platform, 'Data: ' + d.app.data_dir,
+        'Backups: ' + (d.backups.length ? d.backups.map(b => b.day).join(', ') : 'none yet'), '',
+        ...d.health.items.map(i => '[' + i.status.toUpperCase() + '] ' + i.title + ': ' + i.detail + (i.fix && i.status !== 'ok' ? ' -> ' + i.fix : '')), '',
+        'Recent problems:', ...(d.problems.length ? d.problems.map(p => p.at + ' ' + p.kind + ' ' + p.detail) : ['none']), '', 'Log (last lines):', ...d.log].join('\n');
+      clear(out).append(h('div', { class: 'grid' }, d.health.items.map(i => h('div', { class: 'row', 'data-check': i.id }, chip(i.status === 'ok' ? 'OK' : i.status === 'warn' ? 'Check' : 'Fix', tone[i.status]), h('b', {}, i.title), h('span', { class: 'muted' }, i.detail), i.status !== 'ok' && i.fix ? h('span', {}, i.fix) : null))),
+        h('div', { class: 'mt' }, h('b', {}, 'Recent problems')), d.problems.length ? h('div', { class: 'grid', style: 'gap:4px;margin-top:6px' }, d.problems.slice(0, 10).map(p => h('div', { class: 'small muted' }, p.at + '  ' + p.kind + '  ' + p.detail))) : h('div', { class: 'muted small' }, 'None - good.'),
+        h('div', { class: 'row mt' }, h('button', { class: 'btn sm', id: 'copy-report', onclick: async ev => { try { await navigator.clipboard.writeText(report); ev.target.closest('button').lastChild.textContent = 'Copied'; } catch (er) { ev.target.closest('button').lastChild.textContent = 'Select the text below and copy it'; } } }, icon('paste', 14), 'Copy this report'),
+          h('span', { class: 'muted small' }, 'The log file: ' + d.app.log_file), h('span', { class: 'muted small', 'data-role': 'backups' }, 'Daily database backups (data/backups): ' + (d.backups.length ? d.backups.map(b => b.day).join(', ') : 'none yet'))),
+        h('pre', { id: 'diag-log', style: 'max-height:240px;overflow:auto;font:12px ui-monospace,Consolas,monospace;background:var(--surface2);border-radius:10px;padding:10px;margin-top:8px;white-space:pre-wrap' }, d.log.join('\n') || 'The log is empty.'));
+    } catch (er) { clear(out).append(h('div', { class: 'banner bad' }, icon('alert'), er.message)); }
+    b.disabled = false;
+  };
+  return h('div', { class: 'card mt' }, h('div', { class: 'row sp' }, h('div', {}, h('h3', {}, 'Diagnostics'), h('p', { class: 'lead', style: 'margin:0' }, 'Is this computer ready, and what went wrong lately? Send the report if you need help.')),
+    h('button', { class: 'btn', id: 'run-diagnostics', onclick: run }, icon('refresh', 15), 'Run the checks')), out);
+}
+
+/* ================================================================ boot */
+async function boot() {
+  initTheme(); renderNav();
+  try { await api('GET', '/api/ping'); } catch (e) { return showError(e.message); }
+  if (!S.token) return askToken();
+  try { await loadDash(); } catch (e) { if (e.code === 'unauthorized') return askToken(); showError(e.message); }
+  if (!location.hash || location.hash.includes('token=')) history.replaceState(null, '', location.pathname + '#/home');
+  route(); pollActivity();
+}
+boot();
+</script>
+</body>
+</html>

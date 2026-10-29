@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------
+# Secrets, sessions and private runtime data - never commit
+# ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+data/
+network/
+bfp_runs/
+demo_output/
+*.har
+*.db
+*.db-shm
+*.db-wal
+**/evidence/
+**/log.jsonl
+**/timeline.jsonl
+**/console.json
+**/pages.json
+**/websockets.json
+**/manifest.json
+**/PAUSED.json
+state.json
+api_token.txt
+accounts.json
+*.pem
+*.key
+
+# Local knowledge-graph tooling (graphify) and assistant config
+graphify-out/
+.graphifyignore
+CLAUDE.md
+.claude/
+
+# Private operations notes
+server.md
+
+# ---------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------
+buildexe/build/
+buildexe/tools/
+production/
+*.exe
+*.zip
+*.spec.bak
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

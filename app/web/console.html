@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok guard - backend console</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --mute:#667085; --line:#e4e7ec; --ok:#12805c; --warn:#b54708; --bad:#b42318; --acc:#2557d6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151a; --card:#1b2028; --ink:#e8ebf0; --mute:#98a2b3; --line:#2b323d; --ok:#4cc38a; --warn:#f0a35e; --bad:#f08178; --acc:#7ea2ff; } }
+  * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:16px; align-items:baseline; flex-wrap:wrap }
+  header h1 { font-size:16px; margin:0 } header .mute { color:var(--mute); font-size:13px }
+  main { max-width:1100px; margin:0 auto; padding:16px 20px; display:grid; gap:16px }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px }
+  h2 { font-size:14px; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; gap:8px }
+  button, select, input, textarea { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:7px; padding:6px 10px }
+  button { cursor:pointer } button:hover { border-color:var(--acc) } button.primary { background:var(--acc); color:#fff; border-color:var(--acc) }
+  button.danger:hover { border-color:var(--bad); color:var(--bad) } button:disabled { opacity:.5; cursor:default }
+  textarea, input[type=text] { width:100%; background:var(--bg) } textarea { min-height:56px; resize:vertical }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center } .grow { flex:1 1 220px }
+  .item { border-top:1px solid var(--line); padding:10px 0; display:grid; gap:6px } .item:first-of-type { border-top:0 }
+  .badge { display:inline-block; font-size:12px; padding:1px 8px; border-radius:99px; border:1px solid var(--line); color:var(--mute) }
+  .ok { color:var(--ok); border-color:var(--ok) } .expired, .bad { color:var(--bad); border-color:var(--bad) } .warn { color:var(--warn); border-color:var(--warn) }
+  .mute { color:var(--mute) } .flow { border:1px solid var(--acc); border-radius:8px; padding:10px 12px; margin-bottom:10px }
+  .flow.done { border-color:var(--ok) } .flow.failed { border-color:var(--bad) }
+  #log { max-height:220px; overflow:auto; font:12px/1.5 ui-monospace,Consolas,monospace; color:var(--mute) } #log div { border-top:1px solid var(--line); padding:2px 0 }
+  .quote { border-left:3px solid var(--line); padding-left:8px; white-space:pre-wrap }
+</style>
+</head>
+<body>
+<header><h1>TikTok guard - backend console</h1><span class="mute" id="status">connecting...</span><span class="mute" id="who"></span></header>
+<main>
+  <section id="tokenbox" hidden>
+    <h2>Token needed</h2>
+    <div class="row"><input type="text" id="tokeninput" class="grow" placeholder="paste the token (python run.py api-token)"><button class="primary" id="tokenok">Connect</button></div>
+  </section>
+
+  <section>
+    <h2>Accounts <span class="row"><select id="browser"></select><button class="primary" id="add">Add account</button><button id="checkall">Check all</button></span></h2>
+    <div id="flow"></div>
+    <div id="accounts" class="mute">loading...</div>
+  </section>
+
+  <section>
+    <h2>Comment on a TikTok link</h2>
+    <div class="row"><input type="text" id="link" class="grow" placeholder="https://vm.tiktok.com/...  (a post or one comment)"><button id="offer">Create card</button></div>
+    <div class="row" style="margin-top:6px"><input type="text" id="linktext" class="grow" placeholder="comment text (optional, you can write it on the card)"></div>
+    <div id="linkmsg" class="mute" style="margin-top:6px"></div>
+  </section>
+
+  <section>
+    <h2>Waiting for you <button id="reload">Refresh</button></h2>
+    <div id="approvals" class="mute">loading...</div>
+  </section>
+
+  <section><h2>Live events</h2><div id="log"></div></section>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let TOKEN = "";
+try { const m = location.hash.match(/token=([^&]+)/); TOKEN = m ? decodeURIComponent(m[1]) : sessionStorage.getItem("tg_token") || ""; } catch (e) {}
+if (TOKEN) { try { sessionStorage.setItem("tg_token", TOKEN); history.replaceState(null, "", location.pathname); } catch (e) {} }
+
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json" },
+                                  body: body === undefined ? undefined : JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error((data.error && data.error.message) || res.statusText); e.code = data.error && data.error.code; e.status = res.status; throw e; }
+  return data;
+}
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined) n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return n;
+}
+const badge = (text, cls) => el("span", { class: "badge " + (cls || "") }, text);
+async function act(btn, fn) { btn.disabled = true; try { await fn(); } catch (e) { alert(e.message); } finally { btn.disabled = false; } }
+
+// ---- accounts ----------------------------------------------------------------------------------------------
+async function loadAccounts() {
+  const d = await api("GET", "/api/accounts");
+  const sel = $("browser");
+  if (!sel.options.length) {
+    sel.append(el("option", { value: "auto" }, "Browser: auto"));
+    d.browsers.forEach(b => sel.append(el("option", { value: b.kind }, b.name)));
+  }
+  renderFlow(d.flow);
+  const box = $("accounts"); box.textContent = ""; box.classList.remove("mute");
+  d.accounts.forEach(a => {
+    const sess = a.session === "ok" ? badge("logged in", "ok") : a.session === "expired" ? badge("needs login", "expired") : badge("not checked");
+    box.append(el("div", { class: "item" },
+      el("div", { class: "row" }, el("b", {}, a.label), a.username ? el("span", { class: "mute" }, "@" + a.username + (a.region ? " · " + a.region : "")) : null,
+        sess, a.is_master ? badge("page account") : null, a.preferred ? badge("answers first", "ok") : null,
+        a.enabled ? null : badge("disabled", "warn"), a.position ? badge("#" + a.position) : null),
+      el("div", { class: "row" },
+        el("button", { onclick: e => act(e.target, async () => { const r = await api("POST", "/api/accounts/" + a.name + "/check"); alert(r.ok ? (r.session === "ok" ? "Logged in as @" + r.username : "Session expired - use Log in again") : "Could not check: " + r.error); loadAccounts(); }) }, "Check"),
+        a.is_master ? null : el("button", { onclick: e => act(e.target, () => api("POST", "/api/accounts/" + a.name + "/relogin", { browser: $("browser").value })) }, "Log in again"),
+        a.is_master ? null : el("button", { onclick: e => act(e.target, () => api("PATCH", "/api/accounts/" + a.name, { enabled: !a.enabled }).then(loadAccounts)) }, a.enabled ? "Disable" : "Enable"),
+        a.is_master || !a.enabled ? null : el("button", { onclick: e => act(e.target, () => api("PUT", "/api/accounts/first", { name: a.preferred ? null : a.name }).then(loadAccounts)) }, a.preferred ? "Not first" : "Answer first"),
+        a.is_master ? null : el("button", { class: "danger", onclick: e => { if (confirm("Remove " + a.label + " and delete its saved browser folder?")) act(e.target, () => api("DELETE", "/api/accounts/" + a.name).then(loadAccounts)); } }, "Remove"))));
+  });
+}
+function renderFlow(flow) {
+  const box = $("flow"); box.textContent = "";
+  if (!flow || (flow.finished && Date.now() / 1000 - flow.updated_at > 120)) return;
+  box.append(el("div", { class: "flow " + (flow.finished ? (flow.state === "failed" ? "failed" : "done") : "") },
+    el("div", { class: "row" }, el("b", {}, flow.finished ? "Result" : "Add account"), badge(flow.state), badge(flow.browser.name || "")),
+    el("div", {}, flow.message),
+    flow.finished ? null : el("div", { class: "row", style: "margin-top:6px" }, el("button", { onclick: e => act(e.target, () => api("POST", "/api/accounts/add/cancel")) }, "Cancel"))));
+}
+$("add").onclick = e => act(e.target, () => api("POST", "/api/accounts/add", { browser: $("browser").value }).then(d => renderFlow(d)));
+$("checkall").onclick = e => act(e.target, () => api("POST", "/api/accounts/check-all"));
+
+// ---- approvals + link comments -------------------------------------------------------------------------------
+async function loadApprovals() {
+  const d = await api("GET", "/api/approvals?limit=30");
+  const box = $("approvals"); box.textContent = "";
+  if (!d.approvals.length) { box.textContent = "Nothing is waiting."; box.classList.add("mute"); return; }
+  box.classList.remove("mute");
+  d.approvals.forEach(a => {
+    const area = el("textarea", { placeholder: "comment / reply text" }); area.value = a.reply || "";
+    const isLink = a.kind !== "alert";
+    box.append(el("div", { class: "item" },
+      el("div", { class: "row" }, badge(isLink ? (a.kind === "link_post" ? "comment on post" : "reply to comment") : "alert", isLink ? "" : "warn"), badge(a.status),
+        a.target.username ? el("span", { class: "mute" }, "@" + a.target.username) : null,
+        isLink ? badge("by " + (a.account_label || "auto")) : null),
+      a.comment ? el("div", { class: "quote" }, a.comment.text || "") : null,
+      el("div", { class: "mute" }, a.target.video_url || ""),
+      area,
+      el("div", { class: "row" },
+        el("button", { onclick: e => act(e.target, () => api("POST", "/api/approvals/" + a.id + "/reply", { text: area.value }).then(loadApprovals)) }, "Save text"),
+        el("button", { onclick: e => act(e.target, async () => { const brief = isLink ? prompt("In a few words, what should the comment say?") : ""; if (isLink && !brief) return; await api("POST", "/api/approvals/" + a.id + "/regenerate", { brief }); loadApprovals(); }) }, "AI write"),
+        isLink ? el("button", { onclick: e => act(e.target, async () => { const acc = prompt("Account name (empty = auto)", a.account || ""); if (acc === null) return; await api("POST", "/api/approvals/" + a.id + "/account", { account: acc || null }); loadApprovals(); }) }, "Account") : null,
+        el("button", { class: "primary", disabled: !a.can.post, onclick: e => act(e.target, async () => { if (area.value !== (a.reply || "")) await api("POST", "/api/approvals/" + a.id + "/reply", { text: area.value }); await api("POST", "/api/approvals/" + a.id + "/post"); loadApprovals(); }) }, "Post"),
+        el("button", { class: "danger", onclick: e => act(e.target, () => api("POST", "/api/approvals/" + a.id + "/ignore").then(loadApprovals)) }, "Ignore"))));
+  });
+}
+$("offer").onclick = e => act(e.target, async () => {
+  $("linkmsg").textContent = "";
+  try { const v = await api("POST", "/api/comments/link", { link: $("link").value, text: $("linktext").value });
+        $("linkmsg").textContent = "Card created - nothing is sent until you press Post."; $("link").value = ""; $("linktext").value = ""; loadApprovals(); }
+  catch (err) { $("linkmsg").textContent = err.message; }
+});
+$("reload").onclick = () => { loadApprovals(); loadAccounts(); };
+
+// ---- status + live events -------------------------------------------------------------------------------------
+async function loadStatus() {
+  const s = await api("GET", "/api/status");
+  $("status").textContent = "monitoring: every " + s.monitoring.poll_interval_seconds + " s · last scan: " + s.monitoring.last_scan_text +
+    " · AI " + s.ai.used + "/" + s.ai.daily_requests + " · posting " + (s.posting_enabled ? "ON" : "OFF") + " · waiting " + s.waiting;
+  $("who").textContent = s.telegram_enabled ? "Telegram: on" : "Telegram: off";
+}
+function logLine(e) {
+  const log = $("log"); const t = new Date().toLocaleTimeString();
+  log.prepend(el("div", {}, t + "  " + e.type + "  " + JSON.stringify(e.data).slice(0, 180)));
+  while (log.children.length > 80) log.lastChild.remove();
+}
+function listen() {
+  const es = new EventSource("/api/events/stream?token=" + encodeURIComponent(TOKEN));
+  const refresh = (() => { let t; return () => { clearTimeout(t); t = setTimeout(() => { loadAccounts().catch(() => {}); loadApprovals().catch(() => {}); loadStatus().catch(() => {}); }, 250); }; })();
+  ["account.flow", "accounts.changed", "account.checked", "account.session", "approval.created", "approval.updated", "notice", "scan.started", "scan.finished", "proof", "setting.changed", "cleanup.done", "log"]
+    .forEach(type => es.addEventListener(type, ev => { const e = JSON.parse(ev.data); if (type !== "log" || e.level !== "info") logLine(e);
+      if (type === "account.flow") renderFlow(e.data.flow); else refresh(); }));
+}
+async function start() {
+  try { await api("GET", "/api/status"); } catch (e) { $("tokenbox").hidden = false; $("status").textContent = e.status === 401 ? "enter the token" : e.message; return; }
+  $("tokenbox").hidden = true;
+  await Promise.all([loadStatus(), loadAccounts(), loadApprovals()]); listen(); setInterval(() => loadStatus().catch(() => {}), 30000);
+}
+$("tokenok").onclick = () => { TOKEN = $("tokeninput").value.trim(); try { sessionStorage.setItem("tg_token", TOKEN); } catch (e) {} start(); };
+start();
+</script>
+</body>
+</html>
